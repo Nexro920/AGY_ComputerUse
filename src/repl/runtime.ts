@@ -399,6 +399,7 @@ export class ReplRuntime {
           }
           await this.manager.assertSafePage(page);
           await autoSettle(page);
+          await hudShowStatus(page, 'Back', this.manager.getCursorPos());
           return {
             navigated: res !== null,
             url: page.url(),
@@ -420,6 +421,7 @@ export class ReplRuntime {
           }
           await this.manager.assertSafePage(page);
           await autoSettle(page);
+          await hudShowStatus(page, 'Forward', this.manager.getCursorPos());
           return {
             navigated: res !== null,
             url: page.url(),
@@ -440,6 +442,7 @@ export class ReplRuntime {
           }
           await this.manager.assertSafePage(page);
           await autoSettle(page);
+          await hudShowStatus(page, 'Reloaded', this.manager.getCursorPos());
           return { url: page.url(), title: await page.title().catch(() => '') };
         }),
 
@@ -603,6 +606,7 @@ export class ReplRuntime {
         const urlStr = typeof url === 'string' ? url : undefined;
         return runStep('newTab', urlStr, async () => {
           const page = await this.manager.newTab(urlStr, opTimeout(25000));
+          await hudShowStatus(page, `Opened tab: ${page.url()}`, this.manager.getCursorPos());
           return { url: page.url(), title: await page.title().catch(() => '') };
         });
       },
@@ -611,6 +615,7 @@ export class ReplRuntime {
         runStep('switchTab', String(matcher), async () => {
           const m = typeof matcher === 'number' ? matcher : String(matcher ?? '');
           const page = await this.manager.switchTab(m);
+          await hudShowStatus(page, `Switched tab: ${page.url()}`, this.manager.getCursorPos());
           return { url: page.url(), title: await page.title().catch(() => '') };
         }),
 
@@ -676,6 +681,7 @@ export class ReplRuntime {
     const hadWorker = this.worker !== null;
     const worker = this.ensureWorker();
     worker.ref();
+    this.manager.setHudActive(true);
 
     const execId = this.nextExecId++;
     const sdk = this.buildSdk(trace, screenshots, deadlineMs);

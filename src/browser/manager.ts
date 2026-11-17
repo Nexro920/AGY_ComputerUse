@@ -149,6 +149,7 @@ export class BrowserManager {
   private diagnostic: string | undefined;
   private contextClosed = false;
   private lastCursorPos: CursorPoint | null = null;
+  private hudActive = false;
   private trackedPages = new WeakSet<Page>();
   private trackedContexts = new WeakSet<BrowserContext>();
   private dialogEvents: string[] = [];
@@ -201,6 +202,15 @@ export class BrowserManager {
     page.on('popup', (popup) => {
       this.attachPageListeners(popup);
       this.activePage = popup;
+      if (this.hudActive) {
+        void hudSetIdle(popup, this.lastCursorPos, 'Active');
+      }
+    });
+
+    page.on('domcontentloaded', () => {
+      if (this.hudActive && !page.isClosed() && page === this.activePage) {
+        void hudSetIdle(page, this.lastCursorPos, 'Active');
+      }
     });
 
     page.on('request', (req) => {
@@ -295,6 +305,7 @@ export class BrowserManager {
     this.diagnostic = undefined;
     this.contextClosed = false;
     this.lastCursorPos = null;
+    this.hudActive = false;
     this.trackedPages = new WeakSet<Page>();
     this.trackedContexts = new WeakSet<BrowserContext>();
     this.dialogEvents = [];
@@ -637,9 +648,14 @@ export class BrowserManager {
     }
   }
 
+  setHudActive(active: boolean): void {
+    this.hudActive = active;
+  }
+
   /** Keep the HUD cursor visible while an active browser task pauses between tool calls. */
   async setActiveHudIdle(text = 'Active'): Promise<void> {
     if (!this.isConnected()) return;
+    this.hudActive = true;
     const page = this.getActivePage();
     if (!page || page.isClosed()) return;
     await hudSetIdle(page, this.lastCursorPos, text);
@@ -678,6 +694,7 @@ export class BrowserManager {
    */
   async releaseControl(): Promise<{ released: boolean; mode: ConnectionMode }> {
     const previousMode = this.mode;
+    this.hudActive = false;
     this.lastCursorPos = null;
     await this.hideAllHuds();
     if (this.mode === 'attached-cdp') {
