@@ -208,13 +208,21 @@ async function verifyInstalledMcp(targetDir) {
   }
 
   const tempData = await fsp.mkdtemp(path.join(os.tmpdir(), 'agy-cua-verify-'));
+  const expandVars = (value) =>
+    String(value).replace(/\$\{(PLUGIN_ROOT|PLUGIN_DATA)\}/g, (_, k) =>
+      k === 'PLUGIN_ROOT' ? targetDir : tempData,
+    );
+  const resolvedArgs = entry.args.map(expandVars);
+  const resolvedEnv = Object.fromEntries(
+    Object.entries(entry.env || {}).map(([k, v]) => [k, expandVars(v)]),
+  );
   try {
     const result = await new Promise((resolve, reject) => {
-      const child = spawn(entry.command, entry.args, {
+      const child = spawn(entry.command, resolvedArgs, {
         cwd: targetDir,
         env: {
           ...process.env,
-          ...(entry.env || {}),
+          ...resolvedEnv,
           PLUGIN_ROOT: targetDir,
           PLUGIN_DATA: tempData,
         },
@@ -415,11 +423,16 @@ async function main() {
     'utf8',
   );
 
+  const installedScriptsDir = path.join(opts.targetDir, 'scripts');
+  await fsp.mkdir(installedScriptsDir, { recursive: true });
+  const mcpLauncherSrc = path.join(opts.runtimeRoot, 'scripts', 'mcp-launcher.mjs');
+  if (fs.existsSync(mcpLauncherSrc)) {
+    await fsp.copyFile(mcpLauncherSrc, path.join(installedScriptsDir, 'mcp-launcher.mjs'));
+  }
+
   const stopHookSrc = path.join(opts.runtimeRoot, 'scripts', 'stop-hook.mjs');
   const hooksSrc = path.join(opts.runtimeRoot, 'hooks.json');
   if (fs.existsSync(stopHookSrc)) {
-    const installedScriptsDir = path.join(opts.targetDir, 'scripts');
-    await fsp.mkdir(installedScriptsDir, { recursive: true });
     const installedHook = path.join(installedScriptsDir, 'stop-hook.mjs');
     await fsp.copyFile(stopHookSrc, installedHook);
     if (fs.existsSync(hooksSrc)) {
@@ -438,6 +451,10 @@ async function main() {
     await fsp.copyFile(hooksSrc, path.join(opts.targetDir, 'hooks.json'));
   }
 
+  await fsp.rm(path.join(opts.targetDir, 'assets'), { recursive: true, force: true });
+  if (fs.existsSync(path.join(opts.runtimeRoot, 'assets'))) {
+    await copyDirRecursive(path.join(opts.runtimeRoot, 'assets'), path.join(opts.targetDir, 'assets'));
+  }
   await fsp.rm(path.join(opts.targetDir, 'rules'), { recursive: true, force: true });
   await fsp.rm(path.join(opts.targetDir, 'skills'), { recursive: true, force: true });
   await copyDirRecursive(path.join(opts.runtimeRoot, 'rules'), path.join(opts.targetDir, 'rules'));

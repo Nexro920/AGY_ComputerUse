@@ -1,14 +1,28 @@
 {
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "agy-chrome-use",
-  "displayName": "AGY Chrome Use",
+  "displayName": "Chrome Browser REPL",
   "version": "0.1.0",
-  "description": "Stateful Chrome browser REPL plugin (cua_exec) for AGY: prioritizes open Chrome windows, captures pruned semantic trees & screenshots, and executes human-like interactions with a live HUD overlay.",
-  "author": "Nexro920",
-  "homepage": "https://github.com/Nexro920/AGY_ComputerUse",
-  "repository": "https://github.com/Nexro920/AGY_ComputerUse",
+  "description": "Control open Google Chrome tabs or a persistent browser via a stateful JavaScript REPL with live HUD, semantic snapshots, and safe human handoff.",
+  "logo": "assets/logo.svg",
   "suggestedPrompts": [
     "Open https://example.com in Chrome and summarize the interactive elements",
     "Inspect the active Chrome tab and capture a screenshot",
     "Navigate to a page, type into its search bar, scroll, and report the results"
+  ],
+  "author": {
+    "name": "Nexro920",
+    "url": "https://github.com/Nexro920"
+  },
+  "homepage": "https://github.com/Nexro920/AGY_ComputerUse#readme",
+  "repository": "https://github.com/Nexro920/AGY_ComputerUse",
+  "license": "MIT",
+  "keywords": [
+    "chrome",
+    "browser",
+    "cdp",
+    "playwright",
+    "repl",
+    "automation"
   ]
 }

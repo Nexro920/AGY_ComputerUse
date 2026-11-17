@@ -15,7 +15,19 @@ Stateful Chrome browser REPL plugin (`cua_exec`) for **Google Antigravity (AGY)*
 
 ---
 
-## Quick Install (Zero-Clone One-Liner)
+## Quick Install
+
+### Option A: Antigravity CLI (Zero Config)
+
+Requires **Node.js `>= 20`**, `npm`, and **Google Chrome**:
+
+```bash
+agy plugin install https://github.com/Nexro920/AGY_ComputerUse
+```
+
+On first launch, `mcp-launcher.mjs` automatically bootstraps runtime dependencies into `PLUGIN_DATA` without modifying the read-only plugin directory.
+
+### Option B: Zero-Clone Foolproof Installer (Auto-Checks & Installs Node.js / Chrome)
 
 ### Windows (PowerShell)
 
