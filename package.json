@@ -1,0 +1,31 @@
+{
+  "name": "agy-chrome-use",
+  "version": "0.1.0",
+  "description": "Stateful Chrome browser REPL plugin (cua_exec) for AGY",
+  "main": "dist/server.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w",
+    "start": "node dist/server.js",
+    "test": "npm run build && node --test dist/tests/*.test.js"
+  },
+  "keywords": [
+    "antigravity",
+    "mcp",
+    "chrome",
+    "cua",
+    "repl",
+    "playwright"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "playwright": "^1.65.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "agy-chrome-use-release": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node ./scripts/stop-hook.mjs",
+        "timeout": 5
+      }
+    ]
+  }
+}

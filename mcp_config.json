@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "agy-chrome-use": {
+      "command": "node",
+      "args": [
+        "-e",
+        "const p=require('path'),fs=require('fs'),u=require('url');const r=[process.env.AGY_CHROME_RUNTIME_ROOT,process.env.PLUGIN_ROOT,process.cwd()].find(d=>d&&fs.existsSync(p.join(d,'dist/server.js'))&&fs.existsSync(p.join(d,'node_modules')));if(!r)throw new Error('agy-chrome-use runtime not found; run npm run build or reinstall via scripts/install-local.ps1');import(u.pathToFileURL(p.join(r,'dist/server.js')).href);"
+      ],
+      "env": {
+        "AGY_CHROME_CDP_URL": "http://127.0.0.1:9222"
+      }
+    }
+  }
+}

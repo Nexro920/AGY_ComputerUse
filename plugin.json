@@ -1,0 +1,11 @@
+{
+  "name": "agy-chrome-use",
+  "displayName": "AGY Chrome Use",
+  "version": "0.1.0",
+  "description": "Stateful Chrome browser REPL plugin (cua_exec) for AGY: prioritizes open Chrome windows, captures pruned semantic trees & screenshots, and executes human-like interactions with a live HUD overlay.",
+  "suggestedPrompts": [
+    "Open https://example.com in Chrome and summarize the interactive elements",
+    "Inspect the active Chrome tab and capture a screenshot",
+    "Navigate to a page, type into its search bar, scroll, and report the results"
+  ]
+}
