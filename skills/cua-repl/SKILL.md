@@ -32,7 +32,7 @@ The first time `cua_exec` is called on a machine, it returns
   - `includeScreenshot` *(boolean, default `false`)*: Appends a compressed JPEG viewport screenshot.
   - `timeoutMs` *(number, default `30000`, max `120000`)*
 - `cua_status`: Inspect authorization state, Chrome connection mode (`attached-cdp` vs `managed-profile`), and open tabs.
-- `cua_reset`: Reset `scope: "repl" | "page" | "browser"`.
+- `cua_reset`: Reset `scope: "repl" | "page" | "control" | "browser"` (`"control"` releases CDP banner / hides HUD without closing a managed Chrome window).
 - `cua_authorize`: Persist one-time authorization (`{"confirm": true}`).
 
 ## 3. `cua.*` REPL SDK
@@ -74,4 +74,4 @@ Inside `cua_exec`, `cua`, `state` (persists across calls), `console`, and
 3. **Structured errors**:
    - `[ElementDetached]` / `[ElementNotFound]`: Re-run `await cua.snapshot()` to refresh refs, or switch to text/coordinate click.
    - `[Occluded]`: A modal/banner is blocking the element — dismiss it or scroll first.
-4. **Human handoff & clean release**: Stop immediately and ask the user to take over in Chrome if a CAPTCHA, 2FA challenge, login password entry, or payment confirmation appears. Visual HUD overlays auto-hide after each `cua_exec`, and the plugin's `Stop` hook automatically releases `attached-cdp` control when the turn ends (or call `cua_reset` with `{"scope": "browser"}` to clear Chrome's control banner explicitly).
+4. **Human handoff & clean release**: Stop immediately, call `cua_reset` with `{"scope": "control"}` (which releases `attached-cdp` banner while keeping `managed-profile` windows open), and ask the user to take over in Chrome if a CAPTCHA, 2FA challenge, login password entry, or payment confirmation appears. Visual HUD overlays auto-hide after each `cua_exec`, and the plugin's `Stop` hook also automatically releases `attached-cdp` control when the turn ends.

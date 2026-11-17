@@ -4,56 +4,105 @@ Stateful Chrome browser REPL plugin (`cua_exec`) for **Google Antigravity (AGY)*
 
 ## Features
 
-- **Persistent REPL (`cua_exec`)**: Executes multi-step async JavaScript in a sandboxed `node:vm` context with persistent `state` and `cua.*` helpers, compressing multi-turn browser interactions into a single tool call.
+- **Foolproof Pre-Flight Check & One-Click Install**: Verifies Node.js (`>= 20`), `npm`, and Google Chrome before installing; refuses installation with clear diagnostics if missing, or installs missing prerequisites automatically on user confirmation / `-AutoInstall` / `--auto-install`, then installs dependencies, builds, registers the plugin, and verifies the MCP server handshake.
+- **Automatic URL & Browser Routing**: Bundled `rules/AGENTS.md` and `skills/cua-repl/SKILL.md` instruct AGY to automatically invoke `agy-chrome-use` whenever you share a URL, domain, or ask to interact with a web page / active Chrome tab.
+- **One-Time First-Use Authorization**: Prompts once for explicit approval on the first `cua_exec` call and saves it in `PLUGIN_DATA/auth.json` for all future sessions.
 - **Open-Chrome-First Connection**:
-  1. Probes `AGY_CHROME_CDP_URL` (default `http://127.0.0.1:9222`) and Playwright's `chrome` remote-debugging channel to attach to an already-open Chrome window.
-  2. Falls back cleanly to launching a visible Chrome window with a persistent managed profile (`PLUGIN_DATA/chrome-profile`) when remote debugging is not enabled.
-- **One-Time First-Use Authorization**: Prompts for explicit user approval on the very first `cua_exec` call and persists authorization in `PLUGIN_DATA/auth.json` so subsequent sessions run without re-prompting.
-- **Semantic Tree + Visual HUD**: Extracts a pruned interactive element tree with `[e1]` refs and bounding boxes (masking `input[type="password"]`), drives real pointer/keyboard/wheel events, and renders a non-intrusive Shadow DOM cursor/highlight/ripple HUD.
-- **AGY Priority Routing**: Bundled `rules/AGENTS.md` and `skills/cua-repl/SKILL.md` instruct AGY to prioritize `agy-chrome-use` whenever a user shares a URL without specifying another browser plugin.
+  1. Attaches to an already-open Chrome window via CDP (`AGY_CHROME_CDP_URL`, default `http://127.0.0.1:9222`, or Chrome's built-in `chrome://inspect/#remote-debugging` channel).
+  2. Falls back automatically to a visible persistent managed Chrome window (`PLUGIN_DATA/chrome-profile`) when remote debugging is not enabled.
+- **Safe Human Handoff**: Automatically stops and hands control back to you (via `cua_reset({ scope: "control" })` without closing managed windows) whenever encountering login passwords, 2FA/MFA, CAPTCHAs, or sensitive payment/destructive confirmations.
+- **Hardened Sandbox + Semantic Tree + Visual HUD**: Runs scripts in an isolated `worker_threads` + `node:vm` sandbox, masks `input[type="password"]` as `***`, checks Shadow DOM occlusion, blocks SSRF/unsafe redirects, and hides transient HUD overlays + releases CDP banner automatically at turn end.
 
-## Build & Test
+---
+
+## Quick Install (Zero-Clone One-Liner)
+
+### Windows (PowerShell)
+
+Interactive (checks environment first; asks before auto-installing missing Node.js / Chrome):
 
 ```powershell
-npm install
-npm test
+irm https://raw.githubusercontent.com/Nexro920/AGY_ComputerUse/main/scripts/bootstrap.ps1 | iex
 ```
 
-## Install into AGY (Local Plugin Directory)
-
-Windows (PowerShell):
+Unattended one-click auto-install (automatically installs missing Node.js LTS / Chrome via `winget` + builds + verifies):
 
 ```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Nexro920/AGY_ComputerUse/main/scripts/bootstrap.ps1))) -AutoInstall
+```
+
+### macOS / Linux (Bash)
+
+Interactive:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Nexro920/AGY_ComputerUse/main/scripts/bootstrap.sh | bash
+```
+
+Unattended one-click auto-install:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Nexro920/AGY_ComputerUse/main/scripts/bootstrap.sh | bash -s -- --auto-install
+```
+
+---
+
+## Install from Local Clone
+
+```bash
+git clone https://github.com/Nexro920/AGY_ComputerUse.git
+cd AGY_ComputerUse
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# Check environment only (no changes)
+powershell -ExecutionPolicy Bypass -File .\scripts\install-local.ps1 -CheckOnly
+
+# Install (checks environment first; prompts or refuses if prerequisites missing)
 powershell -ExecutionPolicy Bypass -File .\scripts\install-local.ps1
-```
 
-To uninstall on Windows:
+# Install + auto-install missing Node.js / Chrome via winget
+powershell -ExecutionPolicy Bypass -File .\scripts\install-local.ps1 -AutoInstall
 
-```powershell
+# Uninstall (preserves auth & chrome-profile; add -PurgeData to delete all data)
 powershell -ExecutionPolicy Bypass -File .\scripts\install-local.ps1 -Uninstall
 ```
 
-macOS / Linux (Bash):
+**macOS / Linux (Bash):**
 
 ```bash
+# Check environment only
+bash ./scripts/install-local.sh --check-only
+
+# Install (checks environment first; prompts or refuses if prerequisites missing)
 bash ./scripts/install-local.sh
-# Uninstall: bash ./scripts/install-local.sh --uninstall
+
+# Install + auto-install missing prerequisites (Homebrew / apt / dnf)
+bash ./scripts/install-local.sh --auto-install
+
+# Uninstall (add --purge-data to also delete auth & chrome-profile)
+bash ./scripts/install-local.sh --uninstall
 ```
 
-## Optional: Launch Chrome with CDP Enabled
+---
 
-If you want `agy-chrome-use` to attach directly to your open Chrome window on port `9222`:
+## How First Use Works
 
-Windows (PowerShell):
+1. Send any browser prompt in AGY (e.g. `Open https://github.com and check trending`).
+2. On the very first run, AGY will pause and ask you to approve one-time authorization. Confirm once, and it is persisted for future sessions.
+3. By default, if Chrome remote debugging isn't enabled, AGY opens a visible **managed Chrome window** whose cookies/logins persist across sessions.
+4. **Optional — Reuse your existing logged-in Chrome window**:
+   - In Chrome 136+, open `chrome://inspect/#remote-debugging` and turn on remote debugging (click **Allow** on the first connection prompt), **or**
+   - Launch a CDP-enabled Chrome window:
+     - Windows: `powershell -ExecutionPolicy Bypass -File .\scripts\launch-chrome-debug.ps1`
+     - macOS / Linux: `bash ./scripts/launch-chrome-debug.sh`
+5. When a page requires passwords, 2FA, CAPTCHAs, or payments, AGY pauses and releases control so you can complete the step safely in Chrome, then continue by replying to AGY.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\launch-chrome-debug.ps1
-```
-
-macOS / Linux (Bash):
+## Development & Tests
 
 ```bash
-bash ./scripts/launch-chrome-debug.sh
+npm install
+npm test
 ```
-
-Or enable Chrome's built-in remote debugging toggle at `chrome://inspect/#remote-debugging`.

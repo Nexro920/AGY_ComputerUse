@@ -164,6 +164,13 @@ test('MCP server enforces authorization gates, reset scopes, control server auth
       /null/,
     );
 
+    // cua_reset(scope="control") releases control cleanly without error.
+    const resetControl = await client.callTool({
+      name: 'cua_reset',
+      arguments: { scope: 'control' },
+    });
+    assert.equal(resetControl.isError ?? false, false);
+
     // cua_reset(scope="browser") succeeds cleanly even when disconnected.
     const resetBrowser = await client.callTool({
       name: 'cua_reset',

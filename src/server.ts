@@ -127,13 +127,15 @@ server.registerTool(
   {
     title: 'Reset Chrome REPL or Browser',
     description:
-      'Reset persistent REPL variables (scope="repl"), navigate active tab to blank (scope="page"), or disconnect/close Chrome session (scope="browser").',
+      'Reset persistent REPL variables (scope="repl"), navigate active tab to blank (scope="page"), release control cleanly for human handoff without closing managed windows (scope="control"), or disconnect/close Chrome session (scope="browser").',
     inputSchema: {
       scope: z
-        .enum(['repl', 'page', 'browser'])
+        .enum(['repl', 'page', 'control', 'browser'])
         .optional()
         .default('repl')
-        .describe('What to reset: repl variables, current page, or browser connection.'),
+        .describe(
+          'What to reset: repl variables, current page, release control for human handoff, or close/disconnect browser.',
+        ),
     },
   },
   async ({ scope }) => {
@@ -141,6 +143,20 @@ server.registerTool(
       runtime.resetRepl();
       return {
         content: [{ type: 'text', text: 'REPL state variables cleared.' }],
+      };
+    }
+    if (scope === 'control') {
+      const rel = await manager.releaseControl();
+      return {
+        content: [
+          {
+            type: 'text',
+            text:
+              rel.mode === 'attached-cdp'
+                ? 'Released CDP control and hid HUD overlays (user Chrome tabs left open).'
+                : 'Hid HUD overlays and kept browser window open for human interaction.',
+          },
+        ],
       };
     }
     if (scope === 'page') {

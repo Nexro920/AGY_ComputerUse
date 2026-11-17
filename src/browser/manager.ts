@@ -421,7 +421,7 @@ export class BrowserManager {
     } catch (err) {
       throw new CuaError(
         'BrowserUnavailable',
-        `Failed to launch managed Chrome window: ${err instanceof Error ? err.message : String(err)}`,
+        `Failed to launch managed Chrome window (verify Google Chrome is installed and no leftover Chrome process is locking ${CHROME_PROFILE_DIR}): ${err instanceof Error ? err.message : String(err)}`,
       );
     }
 
