@@ -5,7 +5,7 @@ import { chromium, } from 'playwright';
 import { CHROME_PROFILE_DIR, getCdpCandidates } from '../config.js';
 import { CuaError } from '../errors.js';
 import { checkBlockedNavigationReason, getBlockedRouteRegex, isBlockedNetworkError, validateCdpEndpoint, validateNavigationUrl, } from '../security/auth.js';
-import { hudHideTransient } from './hud.js';
+import { hudHideTransient, hudSetIdle } from './hud.js';
 import { invalidateSnapshotRefs } from './perception.js';
 const execFileAsync = promisify(execFile);
 function isUsablePageUrl(url) {
@@ -107,9 +107,11 @@ export class BrowserManager {
     context = null;
     activePage = null;
     mode = 'disconnected';
+    cdpChannelKind = null;
     endpoint;
     diagnostic;
     contextClosed = false;
+    lastCursorPos = null;
     trackedPages = new WeakSet();
     trackedContexts = new WeakSet();
     dialogEvents = [];
@@ -243,9 +245,11 @@ export class BrowserManager {
         this.context = null;
         this.activePage = null;
         this.mode = 'disconnected';
+        this.cdpChannelKind = null;
         this.endpoint = undefined;
         this.diagnostic = undefined;
         this.contextClosed = false;
+        this.lastCursorPos = null;
         this.trackedPages = new WeakSet();
         this.trackedContexts = new WeakSet();
         this.dialogEvents = [];
@@ -282,6 +286,7 @@ export class BrowserManager {
         this.browser = browser;
         this.context = context;
         this.mode = 'attached-cdp';
+        this.cdpChannelKind = endpointOrChannel === 'chrome' ? 'channel' : 'explicit-url';
         this.endpoint = displayEndpoint;
         this.diagnostic = undefined;
         this.attachLifecycleListeners(context, browser);
@@ -345,6 +350,7 @@ export class BrowserManager {
                 channel: 'chrome',
                 headless: false,
                 viewport: null,
+                ignoreDefaultArgs: ['--enable-automation'],
                 args: ['--no-first-run', '--no-default-browser-check'],
             });
         }
@@ -519,6 +525,23 @@ export class BrowserManager {
     getActivePage() {
         return this.activePage && !this.activePage.isClosed() ? this.activePage : null;
     }
+    getCursorPos() {
+        return this.lastCursorPos;
+    }
+    setCursorPos(x, y) {
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+            this.lastCursorPos = { x: Math.round(x), y: Math.round(y) };
+        }
+    }
+    /** Keep the HUD cursor visible while an active browser task pauses between tool calls. */
+    async setActiveHudIdle(text = 'Active') {
+        if (!this.isConnected())
+            return;
+        const page = this.getActivePage();
+        if (!page || page.isClosed())
+            return;
+        await hudSetIdle(page, this.lastCursorPos, text);
+    }
     /** Hide visual HUD overlays on all currently open pages. */
     async hideAllHuds() {
         const pages = this.getOpenPages();
@@ -541,15 +564,19 @@ export class BrowserManager {
             .catch(() => { })));
     }
     /**
-     * Release visual control indicators and, when attached to an existing Chrome
-     * window over CDP, disconnect the CDP client so Chrome clears its control banner
-     * without closing the user's tabs.
+     * Release visual control indicators cleanly for human handoff or turn completion.
+     * For explicit CDP URLs, disconnect the CDP client so automation state resets;
+     * for Chrome's built-in remote-debugging channel, keep the authorized socket alive
+     * across turns (while hiding HUDs) so Chrome does not re-prompt for permission.
      */
     async releaseControl() {
         const previousMode = this.mode;
+        this.lastCursorPos = null;
         await this.hideAllHuds();
         if (this.mode === 'attached-cdp') {
-            await this.disconnect({ preserveRefs: true });
+            if (this.cdpChannelKind === 'explicit-url') {
+                await this.disconnect({ preserveRefs: true });
+            }
             return { released: true, mode: previousMode };
         }
         return { released: false, mode: previousMode };

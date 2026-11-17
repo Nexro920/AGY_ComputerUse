@@ -7,13 +7,19 @@ export interface HudBox {
   height: number;
 }
 
+export interface CursorPoint {
+  x: number;
+  y: number;
+}
+
 const HUD_HOST_ID = '__agy_chrome_use_hud__';
 const HUD_EVAL_TIMEOUT_MS = 1500;
 
 type HudCommand =
-  | { type: 'status'; text: string }
+  | { type: 'status'; text: string; cursorPos?: CursorPoint | null }
   | { type: 'move'; x: number; y: number; box: HudBox | null }
   | { type: 'ripple'; x: number; y: number }
+  | { type: 'idle'; text?: string; cursorPos?: CursorPoint | null }
   | { type: 'hide' };
 
 async function runHudOp(page: Page, cmd: HudCommand): Promise<void> {
@@ -101,6 +107,27 @@ async function runHudOp(page: Page, cmd: HudCommand): Promise<void> {
           return shadow;
         };
 
+        const win = window as unknown as { __agyHudLastPos?: { x: number; y: number } };
+        const ensureCursorVisible = (
+          s: ShadowRoot,
+          fallbackPos?: { x: number; y: number } | null,
+        ) => {
+          const cur = s.getElementById('cur') as HTMLElement | null;
+          if (!cur) return;
+          if (!cur.style.left || !cur.style.top) {
+            const pos =
+              fallbackPos ??
+              win.__agyHudLastPos ?? {
+                x: Math.max(24, Math.round(window.innerWidth / 2)),
+                y: Math.max(24, Math.round(window.innerHeight / 2)),
+              };
+            cur.style.left = `${pos.x}px`;
+            cur.style.top = `${pos.y}px`;
+            win.__agyHudLastPos = pos;
+          }
+          cur.classList.add('visible');
+        };
+
         if (command.type === 'hide') {
           const shadow = document.getElementById(hostId)?.shadowRoot;
           if (!shadow) return;
@@ -120,10 +147,24 @@ async function runHudOp(page: Page, cmd: HudCommand): Promise<void> {
             pill.textContent = `AGY Chrome · ${command.text}`;
             pill.classList.add('visible');
           }
+          ensureCursorVisible(shadow, command.cursorPos);
+          return;
+        }
+
+        if (command.type === 'idle') {
+          shadow.getElementById('hl')?.classList.remove('visible');
+          shadow.getElementById('rp')?.classList.remove('animate');
+          const pill = shadow.getElementById('pill');
+          if (pill) {
+            pill.textContent = `AGY Chrome · ${command.text ?? 'Active'}`;
+            pill.classList.add('visible');
+          }
+          ensureCursorVisible(shadow, command.cursorPos);
           return;
         }
 
         if (command.type === 'move') {
+          win.__agyHudLastPos = { x: command.x, y: command.y };
           const cur = shadow.getElementById('cur') as HTMLElement | null;
           if (cur) {
             cur.style.left = `${command.x}px`;
@@ -168,8 +209,12 @@ async function runHudOp(page: Page, cmd: HudCommand): Promise<void> {
   }
 }
 
-export async function hudShowStatus(page: Page, text: string): Promise<void> {
-  await runHudOp(page, { type: 'status', text });
+export async function hudShowStatus(
+  page: Page,
+  text: string,
+  cursorPos?: CursorPoint | null,
+): Promise<void> {
+  await runHudOp(page, { type: 'status', text, cursorPos });
 }
 
 export async function hudMoveCursor(
@@ -187,6 +232,14 @@ export async function hudClickRipple(
   y: number,
 ): Promise<void> {
   await runHudOp(page, { type: 'ripple', x, y });
+}
+
+export async function hudSetIdle(
+  page: Page,
+  cursorPos?: CursorPoint | null,
+  text?: string,
+): Promise<void> {
+  await runHudOp(page, { type: 'idle', text, cursorPos });
 }
 
 export async function hudHideTransient(page: Page): Promise<void> {

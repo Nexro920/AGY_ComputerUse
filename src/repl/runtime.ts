@@ -345,7 +345,7 @@ export class ReplRuntime {
             currentTab: opts?.currentTab,
           });
           if (action === 'switched') {
-            await hudShowStatus(page, `Switched to existing tab: ${safeUrl}`);
+            await hudShowStatus(page, `Switched to existing tab: ${safeUrl}`, this.manager.getCursorPos());
             if (opts?.reload) {
               try {
                 await page.reload({
@@ -358,13 +358,14 @@ export class ReplRuntime {
             }
             await this.manager.assertSafePage(page);
             await autoSettle(page);
+            await hudShowStatus(page, `Ready: ${safeUrl}`, this.manager.getCursorPos());
             return {
               url: page.url(),
               title: await page.title().catch(() => ''),
               tabAction: action,
             };
           }
-          await hudShowStatus(page, `Navigating to ${safeUrl}`);
+          await hudShowStatus(page, `Navigating to ${safeUrl}`, this.manager.getCursorPos());
           try {
             await page.goto(safeUrl, {
               waitUntil: opts?.waitUntil ?? 'domcontentloaded',
@@ -375,6 +376,7 @@ export class ReplRuntime {
           }
           await this.manager.assertSafePage(page);
           await autoSettle(page);
+          await hudShowStatus(page, `Loaded: ${safeUrl}`, this.manager.getCursorPos());
           return {
             url: page.url(),
             title: await page.title().catch(() => ''),
@@ -446,6 +448,7 @@ export class ReplRuntime {
           rawOpts && typeof rawOpts === 'object' ? (rawOpts as SnapshotOptions) : undefined;
         return runStep('snapshot', undefined, async () => {
           const page = await this.manager.ensurePage();
+          await hudShowStatus(page, 'Inspecting page', this.manager.getCursorPos());
           return captureSnapshot(page, opts);
         });
       },
@@ -472,6 +475,7 @@ export class ReplRuntime {
         return runStep('click', JSON.stringify(target), async () => {
           const page = await this.manager.ensurePage();
           const pt = await humanClick(page, target as TargetSpec, opts);
+          this.manager.setCursorPos(pt.x, pt.y);
           await this.manager.assertSafePage(this.manager.getActivePage() ?? page);
           return pt;
         });
@@ -481,6 +485,7 @@ export class ReplRuntime {
         runStep('clickAt', `(${String(x)}, ${String(y)})`, async () => {
           const page = await this.manager.ensurePage();
           const pt = await humanClick(page, { x: Number(x), y: Number(y) });
+          this.manager.setCursorPos(pt.x, pt.y);
           await this.manager.assertSafePage(this.manager.getActivePage() ?? page);
           return pt;
         }),
@@ -489,6 +494,7 @@ export class ReplRuntime {
         runStep('dblclick', JSON.stringify(target), async () => {
           const page = await this.manager.ensurePage();
           const pt = await humanClick(page, target as TargetSpec, { clickCount: 2 });
+          this.manager.setCursorPos(pt.x, pt.y);
           await this.manager.assertSafePage(this.manager.getActivePage() ?? page);
           return pt;
         }),
@@ -496,7 +502,9 @@ export class ReplRuntime {
       hover: (target: unknown) =>
         runStep('hover', JSON.stringify(target), async () => {
           const page = await this.manager.ensurePage();
-          return humanHover(page, target as TargetSpec);
+          const pt = await humanHover(page, target as TargetSpec);
+          this.manager.setCursorPos(pt.x, pt.y);
+          return pt;
         }),
 
       type: (target: unknown, text: unknown, rawOpts?: unknown) => {
@@ -512,6 +520,7 @@ export class ReplRuntime {
         return runStep('type', JSON.stringify(target), async () => {
           const page = await this.manager.ensurePage();
           const pt = await humanType(page, target as TargetSpec, String(text ?? ''), opts);
+          this.manager.setCursorPos(pt.x, pt.y);
           await this.manager.assertSafePage(this.manager.getActivePage() ?? page);
           return pt;
         });
@@ -521,7 +530,7 @@ export class ReplRuntime {
         const keyStr = String(key ?? '');
         return runStep('press', keyStr, async () => {
           const page = await this.manager.ensurePage();
-          await hudShowStatus(page, `Key ${keyStr}`);
+          await hudShowStatus(page, `Key ${keyStr}`, this.manager.getCursorPos());
           await page.keyboard.press(keyStr);
           await autoSettle(page, { quietMs: 120, maxWaitMs: 800 });
           await this.manager.assertSafePage(this.manager.getActivePage() ?? page);
@@ -531,6 +540,7 @@ export class ReplRuntime {
       scroll: (directionOrDelta: unknown, amount?: unknown) =>
         runStep('scroll', JSON.stringify(directionOrDelta), async () => {
           const page = await this.manager.ensurePage();
+          await hudShowStatus(page, 'Scrolling', this.manager.getCursorPos());
           const amt = typeof amount === 'number' ? amount : undefined;
           return humanScroll(
             page,
@@ -547,13 +557,16 @@ export class ReplRuntime {
       drag: (from: unknown, to: unknown) =>
         runStep('drag', `${JSON.stringify(from)} -> ${JSON.stringify(to)}`, async () => {
           const page = await this.manager.ensurePage();
-          return humanDrag(page, from as TargetSpec, to as TargetSpec);
+          const res = await humanDrag(page, from as TargetSpec, to as TargetSpec);
+          this.manager.setCursorPos(res.to.x, res.to.y);
+          return res;
         }),
 
       select: (target: unknown, value: unknown) =>
         runStep('select', `${JSON.stringify(target)} = ${String(value ?? '')}`, async () => {
           const page = await this.manager.ensurePage();
           const pt = await humanSelect(page, target as TargetSpec, String(value ?? ''));
+          this.manager.setCursorPos(pt.x, pt.y);
           await this.manager.assertSafePage(this.manager.getActivePage() ?? page);
           return pt;
         }),
@@ -803,7 +816,7 @@ export class ReplRuntime {
       this.activeExec = null;
       this.worker?.unref();
       await withSoftTimeout(
-        this.manager.hideAllHuds(),
+        this.manager.setActiveHudIdle('Active'),
         POST_EXEC_HUD_HIDE_CAP_MS,
         undefined,
       );

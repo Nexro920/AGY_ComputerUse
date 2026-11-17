@@ -28,7 +28,7 @@ test('Browser integration: perception masking, Shadow DOM, occlusion, CSP HUD, s
     { ReplRuntime },
     { CuaError },
     { captureSnapshot, captureScreenshot },
-    { hudShowStatus, hudMoveCursor, hudClickRipple, hudHideTransient },
+    { hudShowStatus, hudMoveCursor, hudClickRipple, hudSetIdle, hudHideTransient },
     { autoSettle },
     { SCREENSHOT_DIR },
   ] = await Promise.all([
@@ -317,6 +317,21 @@ test('Browser integration: perception masking, Shadow DOM, occlusion, CSP HUD, s
       hlVisible: true,
     });
 
+    await hudSetIdle(cspPage, { x: 40, y: 40 });
+    const hudIdleState = await cspPage.evaluate(() => {
+      const shadow = document.getElementById('__agy_chrome_use_hud__')?.shadowRoot;
+      return {
+        pillVisible: shadow?.getElementById('pill')?.classList.contains('visible') ?? false,
+        curVisible: shadow?.getElementById('cur')?.classList.contains('visible') ?? false,
+        hlVisible: shadow?.getElementById('hl')?.classList.contains('visible') ?? true,
+      };
+    });
+    assert.deepEqual(hudIdleState, {
+      pillVisible: true,
+      curVisible: true,
+      hlVisible: false,
+    });
+
     await hudHideTransient(cspPage);
     const hudHiddenState = await cspPage.evaluate(() => {
       const shadow = document.getElementById('__agy_chrome_use_hud__')?.shadowRoot;
@@ -444,12 +459,45 @@ test('Browser integration: perception masking, Shadow DOM, occlusion, CSP HUD, s
     assert.equal(redirRes.ok, false);
     assert.match(redirRes.error ?? '', /\[SafetyBlocked\]/);
 
-    // 17. releaseControl in attached-cdp disconnects without closing underlying Chrome
+    // 17. Cursor persists after runtime.execute steps and hides completely on releaseControl()
+    await manager.switchTab('Test App');
+    await runtime.execute(`await cua.snapshot({ viewportOnly: true });`, {
+      includeSnapshot: false,
+    });
+    const activePageBeforeRelease = manager.getActivePage();
+    assert.ok(activePageBeforeRelease);
+    const activeUrlBeforeRelease = activePageBeforeRelease.url();
+    const activeCursorBeforeRelease = await activePageBeforeRelease.evaluate(() => {
+      const shadow = document.getElementById('__agy_chrome_use_hud__')?.shadowRoot;
+      return {
+        curVisible: shadow?.getElementById('cur')?.classList.contains('visible') ?? false,
+        pillVisible: shadow?.getElementById('pill')?.classList.contains('visible') ?? false,
+      };
+    });
+    assert.deepEqual(activeCursorBeforeRelease, {
+      curVisible: true,
+      pillVisible: true,
+    });
+
     const rel = await manager.releaseControl();
     assert.equal(rel.released, true);
     assert.equal(rel.mode, 'attached-cdp');
     assert.equal((await manager.getStatus()).mode, 'disconnected');
     assert.equal(headlessChrome.isConnected(), true);
+    await manager.attachCdp(`http://127.0.0.1:${cdpPort}`);
+    const reattached = await manager.switchTab('Test App');
+    assert.equal(reattached.url(), activeUrlBeforeRelease);
+    const activeCursorAfterRelease = await reattached.evaluate(() => {
+      const shadow = document.getElementById('__agy_chrome_use_hud__')?.shadowRoot;
+      return {
+        curVisible: shadow?.getElementById('cur')?.classList.contains('visible') ?? true,
+        pillVisible: shadow?.getElementById('pill')?.classList.contains('visible') ?? true,
+      };
+    });
+    assert.deepEqual(activeCursorAfterRelease, {
+      curVisible: false,
+      pillVisible: false,
+    });
     assert.equal(new CuaError('ElementNotFound', 'check').code, 'ElementNotFound');
 
     // 18. Auth persistence grant/get/revoke inside isolated tempDataDir

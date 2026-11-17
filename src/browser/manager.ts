@@ -17,7 +17,7 @@ import {
   validateCdpEndpoint,
   validateNavigationUrl,
 } from '../security/auth.js';
-import { hudHideTransient } from './hud.js';
+import { hudHideTransient, hudSetIdle, type CursorPoint } from './hud.js';
 import { invalidateSnapshotRefs } from './perception.js';
 
 const execFileAsync = promisify(execFile);
@@ -144,9 +144,11 @@ export class BrowserManager {
   private context: BrowserContext | null = null;
   private activePage: Page | null = null;
   private mode: ConnectionMode = 'disconnected';
+  private cdpChannelKind: 'channel' | 'explicit-url' | null = null;
   private endpoint: string | undefined;
   private diagnostic: string | undefined;
   private contextClosed = false;
+  private lastCursorPos: CursorPoint | null = null;
   private trackedPages = new WeakSet<Page>();
   private trackedContexts = new WeakSet<BrowserContext>();
   private dialogEvents: string[] = [];
@@ -288,9 +290,11 @@ export class BrowserManager {
     this.context = null;
     this.activePage = null;
     this.mode = 'disconnected';
+    this.cdpChannelKind = null;
     this.endpoint = undefined;
     this.diagnostic = undefined;
     this.contextClosed = false;
+    this.lastCursorPos = null;
     this.trackedPages = new WeakSet<Page>();
     this.trackedContexts = new WeakSet<BrowserContext>();
     this.dialogEvents = [];
@@ -333,6 +337,7 @@ export class BrowserManager {
     this.browser = browser;
     this.context = context;
     this.mode = 'attached-cdp';
+    this.cdpChannelKind = endpointOrChannel === 'chrome' ? 'channel' : 'explicit-url';
     this.endpoint = displayEndpoint;
     this.diagnostic = undefined;
     this.attachLifecycleListeners(context, browser);
@@ -416,6 +421,7 @@ export class BrowserManager {
         channel: 'chrome',
         headless: false,
         viewport: null,
+        ignoreDefaultArgs: ['--enable-automation'],
         args: ['--no-first-run', '--no-default-browser-check'],
       });
     } catch (err) {
@@ -621,6 +627,24 @@ export class BrowserManager {
     return this.activePage && !this.activePage.isClosed() ? this.activePage : null;
   }
 
+  getCursorPos(): CursorPoint | null {
+    return this.lastCursorPos;
+  }
+
+  setCursorPos(x: number, y: number): void {
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      this.lastCursorPos = { x: Math.round(x), y: Math.round(y) };
+    }
+  }
+
+  /** Keep the HUD cursor visible while an active browser task pauses between tool calls. */
+  async setActiveHudIdle(text = 'Active'): Promise<void> {
+    if (!this.isConnected()) return;
+    const page = this.getActivePage();
+    if (!page || page.isClosed()) return;
+    await hudSetIdle(page, this.lastCursorPos, text);
+  }
+
   /** Hide visual HUD overlays on all currently open pages. */
   async hideAllHuds(): Promise<void> {
     const pages = this.getOpenPages();
@@ -647,15 +671,19 @@ export class BrowserManager {
   }
 
   /**
-   * Release visual control indicators and, when attached to an existing Chrome
-   * window over CDP, disconnect the CDP client so Chrome clears its control banner
-   * without closing the user's tabs.
+   * Release visual control indicators cleanly for human handoff or turn completion.
+   * For explicit CDP URLs, disconnect the CDP client so automation state resets;
+   * for Chrome's built-in remote-debugging channel, keep the authorized socket alive
+   * across turns (while hiding HUDs) so Chrome does not re-prompt for permission.
    */
   async releaseControl(): Promise<{ released: boolean; mode: ConnectionMode }> {
     const previousMode = this.mode;
+    this.lastCursorPos = null;
     await this.hideAllHuds();
     if (this.mode === 'attached-cdp') {
-      await this.disconnect({ preserveRefs: true });
+      if (this.cdpChannelKind === 'explicit-url') {
+        await this.disconnect({ preserveRefs: true });
+      }
       return { released: true, mode: previousMode };
     }
     return { released: false, mode: previousMode };

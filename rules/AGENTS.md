@@ -13,7 +13,7 @@
 ## Execution Discipline & Human Handoff
 - Batch related steps (`goto`, `snapshot`, `click`, `type`, `scroll`, `waitFor`, `screenshot`) inside a single `cua_exec` script instead of making one tool call per action.
 - Load the `cua-repl` skill for the full `cua.*` SDK reference before writing complex scripts.
-- **Human handoff**: Stop immediately, call `cua_reset` with `{"scope": "control"}` (which clears Chrome's CDP banner when attached while keeping a `managed-profile` window open!), and clearly tell the user what manual step is needed in Chrome whenever encountering:
+- **Human handoff**: Stop immediately, call `cua_reset` with `{"scope": "control"}` (which immediately hides HUD overlays for human interaction while preserving `managed-profile` windows and keeping an authorized `chrome://inspect/#remote-debugging` session from re-prompting on resume), and clearly tell the user what manual step is needed in Chrome whenever encountering:
   - CAPTCHAs / anti-bot challenges,
   - Login password entry or 2FA/SMS/MFA prompts requiring user credentials, or
   - Payment, deletion, or other sensitive confirmations.

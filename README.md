@@ -1,5 +1,7 @@
 # agy-chrome-use
 
+**English** | [简体中文](README.zh-CN.md)
+
 Stateful Chrome browser REPL plugin (`cua_exec`) for **Google Antigravity (AGY)**.
 
 ## Features
@@ -8,10 +10,10 @@ Stateful Chrome browser REPL plugin (`cua_exec`) for **Google Antigravity (AGY)*
 - **Automatic URL & Browser Routing**: Bundled `rules/AGENTS.md` and `skills/cua-repl/SKILL.md` instruct AGY to automatically invoke `agy-chrome-use` whenever you share a URL, domain, or ask to interact with a web page / active Chrome tab.
 - **One-Time First-Use Authorization**: Prompts once for explicit approval on the first `cua_exec` call and saves it in `PLUGIN_DATA/auth.json` for all future sessions.
 - **Open-Chrome-First Connection**:
-  1. Attaches to an already-open Chrome window via CDP (`AGY_CHROME_CDP_URL`, default `http://127.0.0.1:9222`, or Chrome's built-in `chrome://inspect/#remote-debugging` channel).
+  1. Attaches to an already-open Chrome window via CDP (`AGY_CHROME_CDP_URL`, default `http://127.0.0.1:9222`, or Chrome's built-in `chrome://inspect/#remote-debugging` channel — kept alive across turns within a session to avoid repeated permission prompts).
   2. Falls back automatically to a visible persistent managed Chrome window (`PLUGIN_DATA/chrome-profile`) when remote debugging is not enabled.
 - **Safe Human Handoff**: Automatically stops and hands control back to you (via `cua_reset({ scope: "control" })` without closing managed windows) whenever encountering login passwords, 2FA/MFA, CAPTCHAs, or sensitive payment/destructive confirmations.
-- **Hardened Sandbox + Semantic Tree + Visual HUD**: Runs scripts in an isolated `worker_threads` + `node:vm` sandbox, masks `input[type="password"]` as `***`, checks Shadow DOM occlusion, blocks SSRF/unsafe redirects, and hides transient HUD overlays + releases CDP banner automatically at turn end.
+- **Hardened Sandbox + Semantic Tree + Visual HUD**: Runs scripts in an isolated `worker_threads` + `node:vm` sandbox, masks `input[type="password"]` as `***`, checks Shadow DOM occlusion, blocks SSRF/unsafe redirects, keeps the virtual cursor visible throughout active browser operations, and automatically hides all HUD overlays when control is released or the turn ends.
 
 ---
 
@@ -106,10 +108,10 @@ bash ./scripts/install-local.sh --uninstall
 2. On the very first run, AGY will pause and ask you to approve one-time authorization. Confirm once, and it is persisted for future sessions.
 3. By default, if Chrome remote debugging isn't enabled, AGY opens a visible **managed Chrome window** whose cookies/logins persist across sessions.
 4. **Optional — Reuse your existing logged-in Chrome window**:
-   - In Chrome 136+, open `chrome://inspect/#remote-debugging` and turn on remote debugging (click **Allow** on the first connection prompt), **or**
-   - Launch a CDP-enabled Chrome window:
+   - **Recommended (no permission re-prompts or top banner)**: Launch a dedicated CDP-enabled Chrome window with an isolated profile:
      - Windows: `powershell -ExecutionPolicy Bypass -File .\scripts\launch-chrome-debug.ps1`
      - macOS / Linux: `bash ./scripts/launch-chrome-debug.sh`
+   - **Or via Chrome 136+ `chrome://inspect/#remote-debugging`**: Turn on remote debugging in Chrome and click **Allow** once (kept alive within the MCP session so Chrome doesn't re-prompt across turns; note that Chrome's native *"Automation is controlling Chrome / Turn off in Settings"* top infobar is controlled by Chrome itself as long as remote debugging is active until dismissed or turned off in Chrome Settings; call `cua_reset({ scope: "browser" })` to force-disconnect).
 5. When a page requires passwords, 2FA, CAPTCHAs, or payments, AGY pauses and releases control so you can complete the step safely in Chrome, then continue by replying to AGY.
 
 ## Development & Tests

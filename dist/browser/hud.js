@@ -84,6 +84,23 @@ async function runHudOp(page, cmd) {
                 }
                 return shadow;
             };
+            const win = window;
+            const ensureCursorVisible = (s, fallbackPos) => {
+                const cur = s.getElementById('cur');
+                if (!cur)
+                    return;
+                if (!cur.style.left || !cur.style.top) {
+                    const pos = fallbackPos ??
+                        win.__agyHudLastPos ?? {
+                        x: Math.max(24, Math.round(window.innerWidth / 2)),
+                        y: Math.max(24, Math.round(window.innerHeight / 2)),
+                    };
+                    cur.style.left = `${pos.x}px`;
+                    cur.style.top = `${pos.y}px`;
+                    win.__agyHudLastPos = pos;
+                }
+                cur.classList.add('visible');
+            };
             if (command.type === 'hide') {
                 const shadow = document.getElementById(hostId)?.shadowRoot;
                 if (!shadow)
@@ -103,9 +120,22 @@ async function runHudOp(page, cmd) {
                     pill.textContent = `AGY Chrome · ${command.text}`;
                     pill.classList.add('visible');
                 }
+                ensureCursorVisible(shadow, command.cursorPos);
+                return;
+            }
+            if (command.type === 'idle') {
+                shadow.getElementById('hl')?.classList.remove('visible');
+                shadow.getElementById('rp')?.classList.remove('animate');
+                const pill = shadow.getElementById('pill');
+                if (pill) {
+                    pill.textContent = `AGY Chrome · ${command.text ?? 'Active'}`;
+                    pill.classList.add('visible');
+                }
+                ensureCursorVisible(shadow, command.cursorPos);
                 return;
             }
             if (command.type === 'move') {
+                win.__agyHudLastPos = { x: command.x, y: command.y };
                 const cur = shadow.getElementById('cur');
                 if (cur) {
                     cur.style.left = `${command.x}px`;
@@ -149,14 +179,17 @@ async function runHudOp(page, cmd) {
         // Visual HUD is best-effort; never fail an action due to navigation or closed page.
     }
 }
-export async function hudShowStatus(page, text) {
-    await runHudOp(page, { type: 'status', text });
+export async function hudShowStatus(page, text, cursorPos) {
+    await runHudOp(page, { type: 'status', text, cursorPos });
 }
 export async function hudMoveCursor(page, x, y, box) {
     await runHudOp(page, { type: 'move', x, y, box: box ?? null });
 }
 export async function hudClickRipple(page, x, y) {
     await runHudOp(page, { type: 'ripple', x, y });
+}
+export async function hudSetIdle(page, cursorPos, text) {
+    await runHudOp(page, { type: 'idle', text, cursorPos });
 }
 export async function hudHideTransient(page) {
     await runHudOp(page, { type: 'hide' });
