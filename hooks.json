@@ -1,5 +1,6 @@
 {
   "agy-chrome-use-release": {
+    "enabled": true,
     "Stop": [
       {
         "type": "command",

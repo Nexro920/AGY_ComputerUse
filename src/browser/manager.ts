@@ -150,6 +150,8 @@ export class BrowserManager {
   private contextClosed = false;
   private lastCursorPos: CursorPoint | null = null;
   private hudActive = false;
+  private hudIdleTimer: ReturnType<typeof setTimeout> | null = null;
+  private hudIdleAutoHideMs = 15_000;
   private trackedPages = new WeakSet<Page>();
   private trackedContexts = new WeakSet<BrowserContext>();
   private dialogEvents: string[] = [];
@@ -306,6 +308,7 @@ export class BrowserManager {
     this.contextClosed = false;
     this.lastCursorPos = null;
     this.hudActive = false;
+    this.clearHudIdleTimer();
     this.trackedPages = new WeakSet<Page>();
     this.trackedContexts = new WeakSet<BrowserContext>();
     this.dialogEvents = [];
@@ -648,17 +651,44 @@ export class BrowserManager {
     }
   }
 
-  setHudActive(active: boolean): void {
-    this.hudActive = active;
+  private clearHudIdleTimer(): void {
+    if (this.hudIdleTimer) {
+      clearTimeout(this.hudIdleTimer);
+      this.hudIdleTimer = null;
+    }
   }
 
-  /** Keep the HUD cursor visible while an active browser task pauses between tool calls. */
+  /** Configure the HUD inactivity auto-hide timeout (primarily for tests). */
+  setHudIdleAutoHideMs(ms: number): void {
+    this.hudIdleAutoHideMs = Math.max(0, ms);
+  }
+
+  setHudActive(active: boolean): void {
+    this.hudActive = active;
+    if (active) {
+      this.clearHudIdleTimer();
+    }
+  }
+
+  /**
+   * Keep the HUD cursor visible while an active browser task pauses between tool calls,
+   * and auto-hide it if no new browser activity arrives within `hudIdleAutoHideMs`.
+   */
   async setActiveHudIdle(text = 'Active'): Promise<void> {
     if (!this.isConnected()) return;
     this.hudActive = true;
+    this.clearHudIdleTimer();
     const page = this.getActivePage();
     if (!page || page.isClosed()) return;
     await hudSetIdle(page, this.lastCursorPos, text);
+    if (this.hudIdleAutoHideMs > 0) {
+      this.hudIdleTimer = setTimeout(() => {
+        this.hudIdleTimer = null;
+        this.hudActive = false;
+        void this.hideAllHuds().catch(() => {});
+      }, this.hudIdleAutoHideMs);
+      this.hudIdleTimer.unref?.();
+    }
   }
 
   /** Hide visual HUD overlays on all currently open pages. */
@@ -695,6 +725,7 @@ export class BrowserManager {
   async releaseControl(): Promise<{ released: boolean; mode: ConnectionMode }> {
     const previousMode = this.mode;
     this.hudActive = false;
+    this.clearHudIdleTimer();
     this.lastCursorPos = null;
     await this.hideAllHuds();
     if (this.mode === 'attached-cdp') {
