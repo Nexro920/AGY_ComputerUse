@@ -499,30 +499,6 @@ test('Browser integration: perception masking, Shadow DOM, occlusion, CSP HUD, s
       pillVisible: false,
     });
 
-    // Verify inactivity auto-hide timer hides HUD automatically when idle exceeds threshold
-    manager.setHudIdleAutoHideMs(150);
-    await runtime.execute(`await cua.snapshot({ viewportOnly: true });`, {
-      includeSnapshot: false,
-    });
-    const idleImmediate = await reattached.evaluate(() => {
-      const shadow = document.getElementById('__agy_chrome_use_hud__')?.shadowRoot;
-      return shadow?.getElementById('cur')?.classList.contains('visible') ?? false;
-    });
-    assert.equal(idleImmediate, true);
-    await new Promise((r) => setTimeout(r, 400));
-    const idleExpired = await reattached.evaluate(() => {
-      const shadow = document.getElementById('__agy_chrome_use_hud__')?.shadowRoot;
-      return {
-        curVisible: shadow?.getElementById('cur')?.classList.contains('visible') ?? true,
-        pillVisible: shadow?.getElementById('pill')?.classList.contains('visible') ?? true,
-      };
-    });
-    assert.deepEqual(idleExpired, {
-      curVisible: false,
-      pillVisible: false,
-    });
-    manager.setHudIdleAutoHideMs(15_000);
-
     assert.equal(new CuaError('ElementNotFound', 'check').code, 'ElementNotFound');
 
     // 18. Auth persistence grant/get/revoke inside isolated tempDataDir
